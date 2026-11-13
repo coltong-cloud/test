@@ -7,27 +7,24 @@ set_website_title("Lacrosse Shootout")
 
 ROUNDS = 10
 SIZE = 5
-HARD_TIME_LIMIT = 3.0   # seconds the player gets to shoot in Hard mode
+HARD_TIME_LIMIT = 3.0
 
 
 @dataclass
 class State:
     name: str
     difficulty: str
-    mode: str               # "Accurate" or "Power"
+    mode: str
     shots_taken: int
     goals: int
     saves: int
     misses: int
-    shot_counts: list[int]  # how often the player has shot at each of the 25 cells
-    last_shot: int          # -1 means no shot yet
-    last_ar: int            # goalie anchor row on the last shot
-    last_ac: int            # goalie anchor column on the last shot
-    shot_start: float       # time the current shot clock started
+    shot_counts: list[int]
+    last_shot: int
+    last_ar: int
+    last_ac: int
+    shot_start: float
     message: str
-
-
-# ---------- goalie shape ----------
 
 def goalie_body(ar: int, ac: int) -> dict[int, str]:
     """Body cells {cell_index: emoji}: head, arms, torso, split legs."""
@@ -47,12 +44,10 @@ def goalie_stick(ar: int, ac: int) -> dict[int, str]:
     side = 2 if ac <= 2 else -2
     col = ac + side
     return {
-        (ar - 1) * SIZE + col: "🟫",   # stick head, up high
-        ar * SIZE + col: "🟫",         # stick shaft, at hand height
+        (ar - 1) * SIZE + col: "🟫",
+        ar * SIZE + col: "🟫",
     }
 
-
-# ---------- goalie AI ----------
 
 def goalie_choose_anchor(state: State) -> tuple[int, int]:
     """Goalie predicts your shot from your habits, then moves to cover it."""
@@ -60,15 +55,13 @@ def goalie_choose_anchor(state: State) -> tuple[int, int]:
         weights = [1] * (SIZE * SIZE)
     elif state.difficulty == "Medium":
         weights = [1 + count for count in state.shot_counts]
-    else:  # Hard: strongly favors your habits and your most recent shot
+    else:
         weights = [1 + count * 3 for count in state.shot_counts]
         if state.last_shot != -1:
             weights[state.last_shot] += 3
 
     predicted = random.choices(range(SIZE * SIZE), weights=weights)[0]
     row, col = divmod(predicted, SIZE)
-
-    # keep the goalie's body inside the net
     ar = min(max(row, 1), SIZE - 2)
     ac = min(max(col, 1), SIZE - 2)
     return ar, ac
@@ -88,7 +81,6 @@ def resolve_shot(state: State, spot: int, body: dict[int, str], stick: dict[int,
     row, col = divmod(spot, SIZE)
     on_edge = row in (0, SIZE - 1) or col in (0, SIZE - 1)
 
-    # power shots on the edge can sail wide
     if state.mode == "Power" and on_edge and random.random() < 0.20:
         return "miss"
 
@@ -100,19 +92,17 @@ def resolve_shot(state: State, spot: int, body: dict[int, str], stick: dict[int,
     if spot in stick:
         stick_chance = 0.85 if state.difficulty == "Hard" else 0.70
         if state.mode == "Power":
-            stick_chance -= 0.20   # power shots are harder to stop with a stick
+            stick_chance -= 0.20   
         if random.random() < stick_chance:
             return "stick"
         return "goal"
-
-    # accurate shots near the body can still get stretched out and saved
+    
     if state.mode == "Accurate" and near_body(spot, body) and random.random() < 0.25:
         return "save"
 
     return "goal"
 
 
-# ---------- drawing ----------
 
 def build_goal_table(shot: int, ar: int, ac: int) -> Table:
     """Static picture of the net after a shot."""
@@ -155,7 +145,7 @@ def build_shot_picker() -> Table:
     return Table(grid)
 
 
-# ---------- pages ----------
+
 
 @route
 def index(state: State) -> Page:
@@ -195,7 +185,6 @@ def start_game(state: State, name: str, difficulty: str) -> Page:
 
 @route
 def set_mode(state: State, mode: str) -> Page:
-    # note: this does NOT reset the shot clock, so you can't dodge it by switching
     state.mode = mode
     return game(state)
 
@@ -234,7 +223,6 @@ def game(state: State) -> Page:
 def shoot(state: State, spot: int) -> Page:
     elapsed = time.time() - state.shot_start
 
-    # Hard mode shot clock
     if state.difficulty == "Hard" and elapsed > HARD_TIME_LIMIT:
         state.shots_taken += 1
         state.misses += 1
@@ -266,7 +254,7 @@ def shoot(state: State, spot: int) -> Page:
             state.goals += 1
             state.message = "🚨 GOAL! You found the open net!"
 
-    state.shot_start = time.time()   # restart the clock for the next shot
+    state.shot_start = time.time()
 
     if state.shots_taken >= ROUNDS:
         return final_page(state)
